@@ -1,12 +1,15 @@
+import time
 import dlib
 import numpy as np
 from scipy.spatial import Delaunay
-from scipy import interpolate
+from scipy.interpolate import griddata
 from GeometryTools import *
 
 predictor_path = "shape_predictor_68_face_landmarks.dat"
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
+
+eyebrow_idx = np.concatenate((np.arange(17, 22), np.arange(22, 27)))
 
 def shape_to_np(shape, dtype="int"):
     """
@@ -28,8 +31,14 @@ class MorphableFace(object):
         allidxs = self.tri.find_simplex(XGrid)
         self.idxs = allidxs[allidxs > -1] # Indices into the simplices
         XGrid = XGrid[allidxs > -1, :]
-        self.imgidx = np.arange(self.img.shape[0]*self.img.shape[1])
-        self.imgidx = self.imgidx[allidxs > -1]
+        imgidx = np.arange(self.img.shape[0]*self.img.shape[1])
+        imgidx = imgidx[allidxs > -1]
+        self.imgidxi, self.imgidxj = np.unravel_index(imgidx, (self.img.shape[0], self.img.shape[1]))
+        colors = self.img[self.imgidxi, self.imgidxj, :]
+        self.colors = colors/255.0
+        self.pixx = np.arange(np.min(self.imgidxj), np.max(self.imgidxj)+1)
+        self.pixy = np.arange(np.min(self.imgidxi), np.max(self.imgidxi)+1)
+        self.grididxx, self.grididxy = np.meshgrid(self.pixx, self.pixy)
         self.XGrid = XGrid
         self.bary = getBarycentricCoords(XGrid, self.idxs, self.tri, self.XKey)
 
@@ -67,6 +76,7 @@ class MorphableFace(object):
         x1, x2, y1, y2 = bds
         width = x2 - x1
         height = y2 - y1
+        print("width = %i, height = %i"%(width, height))
         x1 -= pad*width
         x2 += pad*width
         y1 -= pad*height
@@ -75,10 +85,23 @@ class MorphableFace(object):
         self.XKey = XKey
         return self.XKey
     
-    def plotMapForward(self, XKey2):
+    def plotForwardMapSplat(self, XKey2):
         """
         Extend the map from they keypoints to these new keypoints to a refined piecewise
-        affine map from triangles to triangles, and then splat the result
+        affine map from triangles to triangles, and then splat the result via a scatterplot
+        Parameters
+        ----------
+        XKey2: ndarray(71, 2)
+            New locations of facial landmarks
+        """
+        XGrid2 = getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary)
+        plt.imshow(self.img)
+        plt.scatter(XGrid2[:, 0], XGrid2[:, 1], 2, c=self.colors)
+    
+    def getForwardMap(self, XKey2):
+        """
+        Extend the map from they keypoints to these new keypoints to a refined piecewise
+        affine map from triangles to triangles
         Parameters
         ----------
         XKey2: ndarray(71, 2)
@@ -89,16 +112,41 @@ class MorphableFace(object):
         imgwarped: ndarray(M, N, 3)
             An image warped according to the map
         """
-        imgwarped = np.array(self.img)
-        XGrid2 = np.round(getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary))
+        XGrid2 = getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary)
+        imgret = np.array(self.img)
+        interpbox = griddata(XGrid2, self.colors, (self.grididxx, self.grididxy))
+        interpbox = np.array(np.round(255*interpbox), dtype = np.uint8)
+        for c in range(3):
+            interpc = interpbox[:, :, c]
+            imgret[self.imgidxi, self.imgidxj, c] = interpc.flatten()
+        # Some weird stuff happens at the boundaries
+        for k in [0, -1]:
+            imgret[self.imgidxi[k], :, :] = self.img[self.imgidxi[k], :, :]
+            imgret[:, self.imgidxj[k], :] = self.img[:, self.imgidxj[k], :]
+        return imgret
 
-        idxi, idxj = np.unravel_index(self.imgidx, (self.img.shape[0], self.img.shape[1]))
-        colors = imgwarped[idxi, idxj, :]
-        colors = colors/255.0
-        plt.imshow(self.img)
-        plt.scatter(XGrid2[:, 0], XGrid2[:, 1], 2, c=colors)
-    
     def plotKeypoints(self):
         plt.clf()
         plt.imshow(self.img)
         plt.scatter(self.XKey[:, 0], self.XKey[:, 1])
+
+
+def testWarp():
+    filename = "therock.jpg"
+    face = MorphableFace(filename)
+    ## TODO: Use skimage transform
+    NFrames = 10
+    for f in range(NFrames):
+        plt.clf()
+        print("Warping frame %i of %i..."%(f+1, NFrames))
+        XKey2 = np.array(face.XKey)
+        XKey2[0:-4, :] += 2*np.random.randn(XKey2.shape[0]-4, 2)
+        tic = time.time()
+        res = face.getForwardMap(XKey2)
+        plt.imshow(res)
+        print("Elapsed Time: %.3g"%(time.time()-tic))
+        plt.scatter(XKey2[:, 0], XKey2[:, 1], 2)
+        plt.savefig("WarpTest%i.png"%f)
+
+if __name__ == '__main__':
+    testWarp()
