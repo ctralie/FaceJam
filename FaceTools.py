@@ -75,10 +75,10 @@ class MorphableFace(object):
         self.XKey = XKey
         return self.XKey
     
-    def mapForward(self, XKey2):
+    def plotMapForward(self, XKey2):
         """
         Extend the map from they keypoints to these new keypoints to a refined piecewise
-        affine map from triangles to triangles
+        affine map from triangles to triangles, and then splat the result
         Parameters
         ----------
         XKey2: ndarray(71, 2)
@@ -90,13 +90,13 @@ class MorphableFace(object):
             An image warped according to the map
         """
         imgwarped = np.array(self.img)
-        XGrid2 = getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary)
+        XGrid2 = np.round(getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary))
+
         idxi, idxj = np.unravel_index(self.imgidx, (self.img.shape[0], self.img.shape[1]))
-        # Do interpolation for each color channel independently
-        for c in range(3):
-            f = interpolate.interp2d(XGrid2[:, 0], XGrid2[:, 1], self.img[idxi, idxj, c])
-            imgwarped[idxi, idxj, c] = f(idxj, idxi)
-        return imgwarped
+        colors = imgwarped[idxi, idxj, :]
+        colors = colors/255.0
+        plt.imshow(self.img)
+        plt.scatter(XGrid2[:, 0], XGrid2[:, 1], 2, c=colors)
     
     def plotKeypoints(self):
         plt.clf()
