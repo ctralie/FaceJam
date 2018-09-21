@@ -2,11 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import Delaunay
 
+def getCSM(X, Y):
+    XSqr = np.sum(X**2, 1)
+    YSqr = np.sum(Y**2, 1)
+    return XSqr[:, None] + YSqr[None, :] - 2*X.dot(Y.T)
+
 def getBarycentricCoords(X, idxs, tri, XTri):
     """
     Get the barycentric coordinates of all points
-    Parameters
     https://gamedev.stackexchange.com/questions/23743/whats-the-most-efficient-way-to-find-barycentric-coordinates
+    
+    Parameters
     ---------- 
     X: ndarray (N, 2)
         Points of which to compute barycentric coordinates
@@ -16,6 +22,11 @@ def getBarycentricCoords(X, idxs, tri, XTri):
         Delaunay triangulation data structure
     XTri: ndarray (K, 2)
         Landmark points into which the delaunay triangle indexes
+    
+    Returns
+    -------
+    bary: ndarray (N, 3)
+        The barycentric coordinates of each point with respect to its triangle
     """
     a, b, c = [XTri[tri.simplices[idxs][:, k], :] for k in range(3)]
     v0 = b - a
