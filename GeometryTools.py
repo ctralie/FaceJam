@@ -93,5 +93,65 @@ def testBarycentricTri():
     plt.show()
     pass
 
+def getProcrustesAlignment(X, Y, idx):
+    """
+    Given correspondences between two point clouds, to center
+    them on their centroids and compute the Procrustes alignment to
+    align one to the other
+    Parameters
+    ----------
+    X: ndarray(2, M) 
+        Matrix of points in X
+    Y: ndarray(2, M) 
+        Matrix of points in Y (the target point cloud)
+    
+    Returns
+    -------
+    (Cx, Cy, Rx):
+        Cx: 3 x 1 matrix of the centroid of X
+        Cy: 3 x 1 matrix of the centroid of corresponding points in Y
+        Rx: A 3x3 rotation matrix to rotate and align X to Y after
+        they have both been centered on their centroids Cx and Cy
+    """
+    Cx = np.mean(X, 1)[:, None]
+    #Pull out the corresponding points in Y by using numpy
+    #indexing notation along the columns
+    YCorr = Y[:, idx]
+    #Get the centroid of the *corresponding points* in Y
+    Cy = np.mean(YCorr, 1)[:, None]
+    #Subtract the centroid from both X and YCorr with broadcasting
+    XC = X - Cx
+    YCorrC = YCorr - Cy
+    #Compute the singular value decomposition of YCorrC*XC^T
+    (U, S, VT) = np.linalg.svd(YCorrC.dot(XC.T))
+    R = U.dot(VT)
+    return (Cx, Cy, R)    
+
+# Below is some code to find containing triangles
+# for the case where the triangulation isn't Delaunay
+def sign(x, p2, p3):
+    return (x[0] - p3[:, 0])*(p2[:, 1] - p3[:, 1]) - (p2[:, 0] - p3[:, 0])*(x[1] - p3[:, 1])
+
+def getTriangleIdx(X, tri, x):
+    # Check to see if on all sides
+    [a, b, c] = [X[tri[:, k], :] for k in range(3)]
+    b1 = sign(x, a, b) < 0
+    b2 = sign(x, b, c) < 0
+    b3 = sign(x, c, a) < 0
+    agree = np.array((b1 == b2), dtype=int) + np.array((b2 == b3), dtype=int)
+    return np.arange(agree.size)[agree == 2][0]
+
+def testTriIdx():
+    np.random.seed(0)
+    X = np.random.randn(10, 2)
+    x = np.random.rand(10, 2)
+    tri = Delaunay(X)
+
+    for k in range(x.shape[0]):
+        idx = getTriangleIdx(X, tri.simplices, x[k, :])
+        print(idx)
+    print(tri.find_simplex(x))
+
 if __name__ == '__main__':
-    testBarycentricTri()
+    #testBarycentricTri()
+    testTriIdx()

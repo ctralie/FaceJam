@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import tsearch
 from sklearn.decomposition import PCA
 import scipy.misc
 import scipy.io as sio
@@ -8,46 +9,10 @@ import os
 import imageio
 import subprocess
 from FaceTools import *
+from GeometryTools import *
 
 AVCONV_BIN = 'ffmpeg'
 TEMP_STR = "tempprefix"
-
-
-def getProcrustesAlignment(X, Y, idx):
-    """
-    Given correspondences between two point clouds, to center
-    them on their centroids and compute the Procrustes alignment to
-    align one to the other
-    Parameters
-    ----------
-    X: ndarray(2, M) 
-        Matrix of points in X
-    Y: ndarray(2, M) 
-        Matrix of points in Y (the target point cloud)
-    
-    Returns
-    -------
-    (Cx, Cy, Rx):
-        Cx: 3 x 1 matrix of the centroid of X
-        Cy: 3 x 1 matrix of the centroid of corresponding points in Y
-        Rx: A 3x3 rotation matrix to rotate and align X to Y after
-        they have both been centered on their centroids Cx and Cy
-    """
-    Cx = np.mean(X, 1)[:, None]
-    #Pull out the corresponding points in Y by using numpy
-    #indexing notation along the columns
-    YCorr = Y[:, idx]
-    #Get the centroid of the *corresponding points* in Y
-    Cy = np.mean(YCorr, 1)[:, None]
-    #Subtract the centroid from both X and YCorr with broadcasting
-    XC = X - Cx
-    YCorrC = YCorr - Cy
-    #Compute the singular value decomposition of YCorrC*XC^T
-    (U, S, VT) = np.linalg.svd(YCorrC.dot(XC.T))
-    R = U.dot(VT)
-    return (Cx, Cy, R)    
-
-
 
 def getVideo(path, computeKeypoints = True, doPlot = False):
     if not os.path.exists(path):
@@ -133,14 +98,12 @@ def makeProcrustesVideo():
 
         plt.savefig("Procrustes%i.png"%i)
 
-def getFaceModel():
+def getFaceModel(doPlot = False):
     allkeypts = sio.loadmat("allkeypts.mat")["allkeypts"]
     Y = allkeypts[0, :, :].T
-    face = MorphableFace("MyExpressions_InitialFrame.jpg")
     
     ## Step 1: Do procrustes to align all frames to first frame
     for i in range(1, allkeypts.shape[0]):
-        print("Warping %i of %i"%(i, allkeypts.shape[0]))
         X = allkeypts[i, :, :].T
         Cx, Cy, R = getProcrustesAlignment(X[:, 0:-4], Y[:, 0:-4], np.arange(X.shape[1]-4))
         XNew = X - Cx
@@ -158,22 +121,80 @@ def getFaceModel():
     P = pca.components_.T
     sv = np.sqrt(pca.singular_values_)
 
-    plt.subplot(141)
-    plt.stem(sv)
-    plt.title("Principal Component Standard Deviation")
-    for k in range(3):
-        Y = XC + sv[k]*P[:, k]
-        XKey2 = np.reshape(Y, (allkeypts.shape[1], allkeypts.shape[2]))
-        plt.subplot(1, 4, k+2)
-        img = face.getForwardMap(XKey2)
-        plt.imshow(img)
-        plt.title("Principal Component %i"%k)
-    plt.show()
+    face = MorphableFace("MyExpressions_InitialFrame.jpg")
+    if doPlot:
+        plt.subplot(141)
+        plt.stem(sv)
+        plt.title("Principal Component Standard Deviation")
+        for k in range(3):
+            Y = XC + sv[k]*P[:, k]
+            XKey2 = np.reshape(Y, (allkeypts.shape[1], allkeypts.shape[2]))
+            plt.subplot(1, 4, k+2)
+            img = face.getForwardMap(XKey2)
+            plt.imshow(img)
+            plt.title("Principal Component %i"%k)
+        plt.show()
+    
+    return (face, XC.flatten(), P, sv)
 
+def transferExpression(modelface, XC, P, targetface, X):
+    """
+    Given a model face and its principal components, 
+    apply a principal component warp in the model face
+    and transfer it to a new face
+    Parameters
+    ----------
+    modelface: MorphableFace
+        An object of the model face
+    XC: ndarray(NPrincipalComponents)
+        Centroid of model keypoints
+    P: ndarray(NKeypoints, NPrincipalComponents)
+        Principal components for the model keypoints
+    targetface: MorphableFace
+        Face to be warped
+    X: ndarray(NPrincipalComponents)
+        Principal coordinates of the facial expression to realize
+    """
+    ## Step 1: Make keypoints in the model coordinate system
+    Y = XC[None, :] + np.sum(X[None, :]*P, 1)
+    XKey2 = np.reshape(Y, (modelface.XKey.shape[0], modelface.XKey.shape[1]))
+
+    ## Step 2: Find barycentric coordinates in model coordinate system, 
+    ## **using triangles from the target system**
+    idxs = [getTriangleIdx(modelface.XKey, targetface.tri.simplices, XKey2[k, :]) for k in range(XKey2.shape[0])]
+    idxs = np.array(idxs).flatten()
+    bary = getBarycentricCoords(XKey2, idxs, targetface.tri, modelface.XKey)
+
+    ## Step 3: Apply barycentric coordinates in the target face coordinate system
+    XKey2 = getEuclideanFromBarycentric(idxs, targetface.tri, targetface.XKey, bary)
+
+    ## Step 4: Apply the warp to the target face based on the new keypoints
+    return (XKey2, targetface.getForwardMap(XKey2))
+
+
+def testPCsTheRock():
+    (modelface, XC, P, sv) = getFaceModel(doPlot = False)
+    face = MorphableFace("therock.jpg")
+
+    plt.subplot(221)
+    plt.imshow(face.img)
+    plt.title("Original")
+    plt.axis('off')
+    for k in range(3):
+        plt.subplot(2, 2, k+2)
+        x = np.array(sv)
+        mask = np.zeros_like(x)
+        mask[k] = 1
+        x *= mask
+        (XKey2, newimg) = transferExpression(modelface, XC, P, face, x)
+        plt.imshow(newimg)
+        plt.title("PC %i"%(k+1))
+        plt.axis('off')
+    plt.show()
 
 if __name__ == '__main__':
     #allkeypts = getAllKeypointsVideo("MyExpressions.webm", doPlot=True)
     #allkeypts = np.array(allkeypts)
     #sio.savemat("allkeypts.mat", {"allkeypts":allkeypts})
     #makeProcrustesVideo()
-    getFaceModel()
+    testPCsTheRock()
