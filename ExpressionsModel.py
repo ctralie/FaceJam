@@ -98,7 +98,7 @@ def makeProcrustesVideo():
 
         plt.savefig("Procrustes%i.png"%i)
 
-def getFaceModel(doPlot = False):
+def getFaceModel(n_components=10, doPlot = False):
     allkeypts = sio.loadmat("allkeypts.mat")["allkeypts"]
     Y = allkeypts[0, :, :].T
     
@@ -116,7 +116,7 @@ def getFaceModel(doPlot = False):
     X = np.reshape(allkeypts, (allkeypts.shape[0], allkeypts.shape[1]*allkeypts.shape[2]))
     XC = np.mean(X, 0)[None, :]
     X -= XC
-    pca = PCA(n_components=10)
+    pca = PCA(n_components=n_components)
     pca.fit(X)
     P = pca.components_.T
     sv = np.sqrt(pca.singular_values_)
@@ -181,11 +181,10 @@ def testPCsTheRock():
     plt.title("Original")
     plt.axis('off')
     for k in range(3):
-        plt.subplot(2, 2, k+2)
+        plt.subplot(1, 3, k+1)
         x = np.array(sv)
-        mask = np.zeros_like(x)
-        mask[k] = 1
-        x *= mask
+        x = np.zeros_like(sv)
+        x[k] = sv[0]
         (XKey2, newimg) = transferExpression(modelface, XC, P, face, x)
         plt.imshow(newimg)
         plt.title("PC %i"%(k+1))

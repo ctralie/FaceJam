@@ -1,0 +1,3 @@
+[submodule "GraphDitty"]
+	path = GraphDitty
+	url = https://github.com/ctralie/GraphDitty.git
