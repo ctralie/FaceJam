@@ -1,9 +1,9 @@
 # FaceJam (<a href = "https://labrosa.ee.columbia.edu/hamr_ismir2018/">HAMR 2018</a>)
 
-The goal of this 2 day hackathon was given a song and an image with a face in it, to make a program that automatically detects the face and makes a music video in which the face's eyebrows move to the beat, and in which the face changes its expression depending where we are in the song (e.g. verse vs chorus).  An example is below animating the face of <a href = "https://en.wikipedia.org/wiki/Dwayne_Johnson">Dwayne Johnson ("The Rock")</a> to go along with <a href = "https://www.youtube.com/watch?v=CDl9ZMfj6aE">Alien Ant Farm's Smooth Criminal</a>:
+The goal of this 2 day hackathon was given a song and an image with a face in it, to make a program that automatically detects the face and makes a music video in which the face's eyebrows move to the beat, and in which the face changes its expression depending where we are in the song (e.g. verse vs chorus).  Click on the link below to show an example animating the face of <a href = "https://en.wikipedia.org/wiki/Dwayne_Johnson">Dwayne Johnson ("The Rock")</a> to go along with <a href = "https://www.youtube.com/watch?v=CDl9ZMfj6aE">Alien Ant Farm's Smooth Criminal</a>:
 
 
-[![Alt text](https://img.youtube.com/vi/VnCy7NGGN-3U/0.jpg)](https://www.youtube.com/watch?v=nCy7NGGN-3U)
+[![Animating Dwayne Johnson's face to Alien Ant Farm's 'Smooth Criminal'](https://img.youtube.com/vi/nCy7NGGN-3U/1.jpg)](https://www.youtube.com/watch?v=nCy7NGGN-3U)
 
 ## Dependencies
 This requires that you have numpy/scipy installed, as well as <a href = "https://www.ffmpeg.org/">ffmpeg</a> for video loading and saving, <a href = "http://dlib.net/">dlib</a> for facial landmark detection (pip install dlib), <a href = "https://librosa.github.io/librosa/">librosa</a> for audio features (pip install librosa), and <a href = "https://github.com/CPJKU/madmom">madmom</a> for beat tracking (pip install madmom).
