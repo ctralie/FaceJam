@@ -5,6 +5,11 @@ The goal of this 2 day hackathon was given a song and an image with a face in it
 
 [![Animating Dwayne Johnson's face to Alien Ant Farm's 'Smooth Criminal'](https://img.youtube.com/vi/nCy7NGGN-3U/1.jpg)](https://www.youtube.com/watch?v=nCy7NGGN-3U)
 
+and here is an example of animating Paul McCartney's face to "Come Together"
+
+[![Animating Paul McCartney's face to 'Come Together'](https://img.youtube.com/vi/6rEmSPunQ6U/1.jpg)](https://www.youtube.com/watch?v=6rEmSPunQ6U)
+
+
 ## Dependencies
 This requires that you have numpy/scipy installed, as well as <a href = "https://www.ffmpeg.org/">ffmpeg</a> for video loading and saving, <a href = "http://dlib.net/">dlib</a> for facial landmark detection (pip install dlib), <a href = "https://librosa.github.io/librosa/">librosa</a> for audio features (pip install librosa), and <a href = "https://github.com/CPJKU/madmom">madmom</a> for beat tracking (pip install madmom).
 
