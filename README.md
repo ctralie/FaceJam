@@ -2,7 +2,8 @@
 
 The goal of this 2 day hackathon was given a song and an image with a face in it, to make a program that automatically detects the face and makes a music video in which the face's eyebrows move to the beat, and in which the face changes its expression depending where we are in the song (e.g. verse vs chorus).  An example is below animating the face of <a href = "https://en.wikipedia.org/wiki/Dwayne_Johnson">Dwayne Johnson ("The Rock")</a> to go along with <a href = "https://www.youtube.com/watch?v=CDl9ZMfj6aE">Alien Ant Farm's Smooth Criminal</a>:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/nCy7NGGN-3U" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+
+[![Alt text](https://img.youtube.com/vi/VnCy7NGGN-3U/0.jpg)](https://www.youtube.com/watch?v=nCy7NGGN-3U)
 
 ## Dependencies
 This requires that you have numpy/scipy installed, as well as <a href = "https://www.ffmpeg.org/">ffmpeg</a> for video loading and saving, <a href = "http://dlib.net/">dlib</a> for facial landmark detection (pip install dlib), <a href = "https://librosa.github.io/librosa/">librosa</a> for audio features (pip install librosa), and <a href = "https://github.com/CPJKU/madmom">madmom</a> for beat tracking (pip install madmom).
