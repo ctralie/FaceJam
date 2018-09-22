@@ -21,6 +21,8 @@ from multiprocessing import Pool as PPool
 from FaceTools import *
 from ExpressionsModel import *
 
+TEMP_STR = "musicvideo"
+
 def getRNNDBNOnsets(filename):
     """
     Call Madmom's implementation of RNN + DBN beat tracking
@@ -119,6 +121,7 @@ if __name__ == '__main__':
 
     def makeWarpsBatch(args):
         (i) = args
+        print("Processing frame %i"%i)
         (XKey2, imgwarp) = transferExpression(modelface, XC, P, face, x[i, :])
         XKey2[eyebrow_idx, 1] += eyebrows_diff[i]
         imgwarp = face.getForwardMap(XKey2)

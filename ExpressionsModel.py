@@ -191,9 +191,35 @@ def testPCsTheRock():
         plt.axis('off')
     plt.show()
 
+def showMyFaceOnTheRock():
+    (modelface, XC, P, sv) = getFaceModel(doPlot = False)
+    print("XC.shape = ", XC.shape)
+    print("P.shape = ", P.shape)
+    face = MorphableFace("therock.jpg")
+    (allframes, allkeypts) = getVideo("MyExpressions.webm")
+    plt.figure(figsize=(12, 6))
+    for i in range(len(allframes)):
+        keypts = allkeypts[i]
+        keypts[-4::, :] = allkeypts[0][-4::, :]
+        keypts = keypts.flatten()
+        keypts -= XC
+        coords = keypts[None, :].dot(P)
+        
+        XKey2, newimg = transferExpression(modelface, XC, P, face, coords.flatten())
+        plt.clf()
+        plt.subplot(121)
+        plt.imshow(allframes[i])
+        plt.title("Frame %i"%i)
+        plt.subplot(122)
+        plt.imshow(newimg)
+        plt.title("The Rock Warped")
+        plt.savefig("MeToTheRock%i.png"%i)
+
+
 if __name__ == '__main__':
     #allkeypts = getAllKeypointsVideo("MyExpressions.webm", doPlot=True)
     #allkeypts = np.array(allkeypts)
     #sio.savemat("allkeypts.mat", {"allkeypts":allkeypts})
     #makeProcrustesVideo()
-    testPCsTheRock()
+    #testPCsTheRock()
+    showMyFaceOnTheRock()
