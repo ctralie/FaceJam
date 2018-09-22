@@ -127,7 +127,7 @@ if __name__ == '__main__':
         imgwarp = face.getForwardMap(XKey2)
         scipy.misc.imsave("%s%i.png"%(TEMP_STR, i), imgwarp)
 
-    parpool = PPool(12)
+    parpool = PPool(NThreads)
     parpool.map(makeWarpsBatch, (np.arange(tsvideo.size)))
 
     ## Step 4: Make the music video
