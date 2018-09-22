@@ -31,7 +31,7 @@ python FaceJam.py --help
 Below I will describe some of the key steps of the algorithm
 
 
-### Piecewise Affine Face Warping 
+### Piecewise Affine Face Warping (Main Code: FaceTools.py, GeometryTools.py)
 
 We use the delaunay triangulation on <a href = "http://dlib.net/face_landmark_detection.py.html">facial landmarks</a> to create a bunch of triangles.  We then define a piecewise affine (triangle to triangle) warp to extend the map <b>f</b> from facial landmarks in one position to facial landmarks in anther position to a map <b>g</b> from all pixels in the face bounding box in one position to the pixels in the bounding box of a face in another position.  Below is an example of a Delaunay triangulation on The Rock's face
 
@@ -44,7 +44,7 @@ And below is an example using this Delaunay triangulation to construct piecewise
 [![Warping The Rock's Face with A Piecewise Affine Warp Based on Facial Landmarks'](https://img.youtube.com/vi/PEP8yz_msjw/1.jpg)](https://www.youtube.com/watch?v=PEP8yz_msjw)
 
 
-### Facial Expressions PCA / Barycentric Face Expression Cloning
+### Facial Expressions PCA / Barycentric Face Expression Cloning (Main Code: ExpressionsModel.py)
 
 Next, I took a video of myself making a bunch of facial expression to make a "facial expressions dictionary" of sorts.  I perform a <a href = "https://en.wikipedia.org/wiki/Orthogonal_Procrustes_problem">procrustes alignment</a> of all of the facial landmarks to the first frame to control for rigid motions of my head.  Then, considering the collections of xy positions of all of my facial landmarks as one big vector, I perform PCA on this collection of landmark positions to learn a lower dimensional coordinate system for the space of my expressions
 
@@ -61,4 +61,11 @@ Here's an entire video showing me "cloning" my face expression to The Rock's fac
 
 [![Cloning my expressions to The Rock's Face'](https://img.youtube.com/vi/DLe8c7b0GTE/1.jpg)](https://www.youtube.com/watch?v=DLe8c7b0GTE)
 
+### Song Structure Diffusion Maps + Beat Tracking = FaceJam! (Main Code: GraphDitty submodule, FaceJam.py)
 
+Finally, given a song, I perform beat tracking using <a href = "https://github.com/CPJKU/madmom">madmom</a>, the best beat tracking software I'm aware of, and I also perform diffusion maps on song structure (this is my ISMIR late breaking demo this year...please see my GraphDitty <a href = "http://www.covers1000.net/GraphDitty/">demo</a> <a href = "https://github.com/ctralie/GraphDitty">code</a>, and <a href = "http://www.covers1000.net/ctralie2018_GraphDitty.pdf">abstract</a>  NOTE that GraphDitty is a submodule of this repo).  Below is a plot of the coordinates of diffusion maps for Alien Ant Farm's "Smooth Criminal" cover:
+
+
+<img src = "http://www.ctralie.com/Research/FaceJam_HAMR2018/therock_AAF_4Components_MaxNormPerComponent.avi_DiffusionMaps.png">
+
+I put the diffusion maps coordinates in the PCA space of facial landmarks, add on an additional vertical eyebrow displacement depending on how close we are to a beat onset, do the warp, and synchronize the result to music.  And that's it!
