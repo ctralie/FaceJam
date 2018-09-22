@@ -1,6 +1,6 @@
 # FaceJam (<a href = "https://labrosa.ee.columbia.edu/hamr_ismir2018/">HAMR 2018</a>)
 
-The goal of this 2 day hackathon was given a song and an image with a face in it, to make a program that automatically detects the face and makes a music video in which the face's eyebrows move to the beat, and in which the face changes its expression depending where we are in the song (e.g. verse vs chorus).  Click on the link below to show an example animating the face of <a href = "https://en.wikipedia.org/wiki/Dwayne_Johnson">Dwayne Johnson ("The Rock")</a> to go along with <a href = "https://www.youtube.com/watch?v=CDl9ZMfj6aE">Alien Ant Farm's Smooth Criminal</a>:
+The goal of this 2 day hackathon was given a song and an image with a face in it, to make a program that automatically detects the face and makes a music video in which the face's eyebrows move to the beat, and in which the face changes its expression depending where we are in the song (e.g. verse vs chorus).  Click on the thumbnail below to show an example animating the face of <a href = "https://en.wikipedia.org/wiki/Dwayne_Johnson">Dwayne Johnson ("The Rock")</a> to go along with <a href = "https://www.youtube.com/watch?v=CDl9ZMfj6aE">Alien Ant Farm's Smooth Criminal</a>:
 
 
 [![Animating Dwayne Johnson's face to Alien Ant Farm's 'Smooth Criminal'](https://img.youtube.com/vi/nCy7NGGN-3U/1.jpg)](https://www.youtube.com/watch?v=nCy7NGGN-3U)
@@ -18,14 +18,47 @@ git clone --recursive https://github.com/ctralie/FaceJam.git
 Then, type the following at the root of the FaceJam directory
 
 ~~~~~ bash
- python FaceJam.py --songfilename (path to your song) --imgfilename (path to image with a face in it) --videoname (output name for the resulting music video, e.g. "myvideo.avi")
-~~~~~ bash
+python FaceJam.py --songfilename (path to your song) --imgfilename (path to image with a face in it) --videoname (output name for the resulting music video, e.g. "myvideo.avi")
+~~~~~
 
 to see more options, including number of threads to make it faster on a multicore machine, please type
 ~~~~~ bash
- python FaceJam.py --help
-~~~~~ bash
+python FaceJam.py --help
+~~~~~
 
 ## Algorithm / Development
 
 Below I will describe some of the key steps of the algorithm
+
+
+### Piecewise Affine Face Warping 
+
+We use the delaunay triangulation on <a href = "http://dlib.net/face_landmark_detection.py.html">facial landmarks</a> to create a bunch of triangles.  We then define a piecewise affine (triangle to triangle) warp to extend the map <b>f</b> from facial landmarks in one position to facial landmarks in anther position to a map <b>g</b> from all pixels in the face bounding box in one position to the pixels in the bounding box of a face in another position.  Below is an example of a Delaunay triangulation on The Rock's face
+
+<img src = "http://www.ctralie.com/Research/FaceJam_HAMR2018/TheRockDelaunay.svg">
+
+
+
+And below is an example using this Delaunay triangulation to construct piecewise affine maps for randomly perturbed landmarks 
+
+[![Warping The Rock's Face with A Piecewise Affine Warp Based on Facial Landmarks'](https://img.youtube.com/vi/PEP8yz_msjw/1.jpg)](https://www.youtube.com/watch?v=PEP8yz_msjw)
+
+
+### Facial Expressions PCA / Barycentric Face Expression Cloning
+
+Next, I took a video of myself making a bunch of facial expression to make a "facial expressions dictionary" of sorts.  I perform a <a href = "https://en.wikipedia.org/wiki/Orthogonal_Procrustes_problem">procrustes alignment</a> of all of the facial landmarks to the first frame to control for rigid motions of my head.  Then, considering the collections of xy positions of all of my facial landmarks as one big vector, I perform PCA on this collection of landmark positions to learn a lower dimensional coordinate system for the space of my expressions
+
+<img src = "http://www.ctralie.com/Research/FaceJam_HAMR2018/PrincipalComponents.svg">
+
+I then use barycentric coordinates of my facial landmarks relative to triangles drawn on The Rock's face to define a piecewise affine warp on his face
+
+<BR><BR>
+<img src = "http://www.ctralie.com/Research/FaceJam_HAMR2018/TheRockPCs.png">
+
+<BR><BR>
+Here's an entire video showing me "cloning" my face expression to The Rock's face this way
+
+
+[![Cloning my expressions to The Rock's Face'](https://img.youtube.com/vi/DLe8c7b0GTE/1.jpg)](https://www.youtube.com/watch?v=DLe8c7b0GTE)
+
+

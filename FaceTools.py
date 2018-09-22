@@ -136,13 +136,15 @@ class MorphableFace(object):
             imgret[:, self.imgidxj[k], :] = self.img[:, self.imgidxj[k], :]
         return imgret
 
-    def plotKeypoints(self):
+    def plotKeypoints(self, drawLandmarks = True, drawTriangles = False):
         """
         Plot the image with the keypoints superimposed
         """
-        plt.clf()
         plt.imshow(self.img)
-        plt.scatter(self.XKey[:, 0], self.XKey[:, 1])
+        if drawLandmarks:
+            plt.scatter(self.XKey[:, 0], self.XKey[:, 1])
+        if drawTriangles:
+            plt.triplot(self.XKey[:, 0], self.XKey[:, 1], self.tri.simplices)
 
 
 def testWarp():
@@ -166,4 +168,15 @@ def testWarp():
         plt.savefig("WarpTest%i.png"%f)
 
 if __name__ == '__main__':
-    testWarp()
+    face = MorphableFace("therock.jpg")
+    plt.subplot(121)
+    face.plotKeypoints()
+    plt.xlim([250, 500])
+    plt.ylim([250, 0])
+    plt.title("DLib Facial Landmarks")
+    plt.subplot(122)
+    face.plotKeypoints(False, True)
+    plt.xlim([250, 500])
+    plt.ylim([250, 0])
+    plt.title("Delaunay Triangulation")
+    plt.show()
