@@ -23,6 +23,15 @@ class MorphableFace(object):
     which can be used to warp the face into different expressions
     """
     def __init__(self, filename):
+        """
+        Constructor for the face object.  Initializes the keypoints, sets up some
+        data structures that keep track of the locations of the keypoints to help
+        later with interpolation, and computes barycentric coordinates
+        Parameters
+        ----------
+        filename: string
+            Path to image file with at least one face in it
+        """
         self.img = dlib.load_rgb_image(filename)
         self.getFaceKeypts()
         self.tri = Delaunay(self.XKey)
@@ -76,6 +85,8 @@ class MorphableFace(object):
         x1, x2, y1, y2 = bds
         width = x2 - x1
         height = y2 - y1
+        self.width = width
+        self.height = height
         print("width = %i, height = %i"%(width, height))
         x1 -= pad*width
         x2 += pad*width
@@ -126,15 +137,21 @@ class MorphableFace(object):
         return imgret
 
     def plotKeypoints(self):
+        """
+        Plot the image with the keypoints superimposed
+        """
         plt.clf()
         plt.imshow(self.img)
         plt.scatter(self.XKey[:, 0], self.XKey[:, 1])
 
 
 def testWarp():
+    """
+    Make sure the warping is working by randomly perturbing the
+    facial landmarks a bunch of times
+    """
     filename = "therock.jpg"
     face = MorphableFace(filename)
-    ## TODO: Use skimage transform
     NFrames = 10
     for f in range(NFrames):
         plt.clf()
