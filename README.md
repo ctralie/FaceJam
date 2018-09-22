@@ -15,6 +15,8 @@ To run this program on your own songs, first check it out as follows
 git clone --recursive https://github.com/ctralie/FaceJam.git
 ~~~~~
 
+You will also need to download a dlib facial landmarks file <a href = "https://github.com/AKSHAYUBHAT/TensorFace/raw/master/openface/models/dlib/shape_predictor_68_face_landmarks.dat">shape_predictor_68_face_landmarks.dat</a> and place it at the root of the repository
+
 Then, type the following at the root of the FaceJam directory
 
 ~~~~~ bash
