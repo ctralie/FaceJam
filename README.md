@@ -68,4 +68,4 @@ Finally, given a song, I perform beat tracking using <a href = "https://github.c
 
 <img src = "http://www.ctralie.com/Research/FaceJam_HAMR2018/therock_AAF_4Components_MaxNormPerComponent.avi_DiffusionMaps.png">
 
-I put the diffusion maps coordinates in the PCA space of facial landmarks, add on an additional vertical eyebrow displacement depending on how close we are to a beat onset, do the warp, and synchronize the result to music.  And that's it!
+Verse/chorus separation is clearly visible in the second component, and there is some finer structure in the other components.  I put the diffusion maps coordinates in the PCA space of facial landmarks, add on an additional vertical eyebrow displacement depending on how close we are to a beat onset, do the warp, and synchronize the result to music.  And that's it!
