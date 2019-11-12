@@ -13,6 +13,7 @@ import time
 import librosa
 import argparse
 import sys
+import imageio
 sys.path.append("GraphDitty")
 from SongStructure import getFusedSimilarity
 from DiffusionMaps import getDiffusionMap
@@ -125,7 +126,7 @@ if __name__ == '__main__':
         (XKey2, imgwarp) = transferExpression(modelface, XC, P, face, x[i, :])
         XKey2[eyebrow_idx, 1] += eyebrows_diff[i]
         imgwarp = face.getForwardMap(XKey2)
-        scipy.misc.imsave("%s%i.png"%(TEMP_STR, i), imgwarp)
+        imageio.imwrite("%s%i.png"%(TEMP_STR, i), imgwarp)
 
     parpool = PPool(NThreads)
     parpool.map(makeWarpsBatch, (np.arange(tsvideo.size)))
