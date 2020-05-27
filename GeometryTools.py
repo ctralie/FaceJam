@@ -7,7 +7,7 @@ def getCSM(X, Y):
     YSqr = np.sum(Y**2, 1)
     return XSqr[:, None] + YSqr[None, :] - 2*X.dot(Y.T)
 
-def getBarycentricCoords(X, idxs, tri, XTri):
+def get_barycentric(X, idxs, tri, XTri):
     """
     Get the barycentric coordinates of all points
     https://gamedev.stackexchange.com/questions/23743/whats-the-most-efficient-way-to-find-barycentric-coordinates
@@ -43,7 +43,7 @@ def getBarycentricCoords(X, idxs, tri, XTri):
     u = 1.0 - v - w
     return np.array([u, v, w]).T
 
-def getEuclideanFromBarycentric(idxs, tri, XTri, bary):
+def barycentric_to_euclidean(idxs, tri, XTri, bary):
     """
     Return Euclidean coordinates from a barycentric coordinates
     idxs: ndarray(N)
@@ -60,7 +60,7 @@ def getEuclideanFromBarycentric(idxs, tri, XTri, bary):
     return u[:, None]*a + v[:, None]*b + w[:, None]*c
 
 
-def testBarycentricTri():
+def test_barycentric_tri():
     """
     Testing point location and barycentric coordinates.
     Plot the indices for the simplices to figure out how point
@@ -78,8 +78,8 @@ def testBarycentricTri():
     idxs = allidxs[allidxs > -1]
     XGrid = XGrid[allidxs > -1, :]
 
-    bary = getBarycentricCoords(XGrid, idxs, tri, XTri)
-    XGridBack = getEuclideanFromBarycentric(idxs, tri, XTri, bary)
+    bary = get_barycentric(XGrid, idxs, tri, XTri)
+    XGridBack = barycentric_to_euclidean(idxs, tri, XTri, bary)
 
     print("Is Cartesian -> Barycentric -> Cartesian Identity?: %s"%np.allclose(XGrid, XGridBack))
 
@@ -91,9 +91,34 @@ def testBarycentricTri():
     plt.scatter(XGridBack[:, 0], XGridBack[:, 1])
     plt.triplot(XTri[:, 0], XTri[:, 1], triangles=tri.simplices.copy(), c='C1')
     plt.show()
-    pass
 
-def getProcrustesAlignment(X, Y, idx):
+# Below is some code to find containing triangles
+# for the case where the triangulation isn't Delaunay
+def sign(x, p2, p3):
+    return (x[0] - p3[:, 0])*(p2[:, 1] - p3[:, 1]) - (p2[:, 0] - p3[:, 0])*(x[1] - p3[:, 1])
+
+def get_triangle_idx(X, tri, x):
+    # Check to see if on all sides
+    [a, b, c] = [X[tri[:, k], :] for k in range(3)]
+    b1 = sign(x, a, b) < 0
+    b2 = sign(x, b, c) < 0
+    b3 = sign(x, c, a) < 0
+    agree = np.array((b1 == b2), dtype=int) + np.array((b2 == b3), dtype=int)
+    return np.arange(agree.size)[agree == 2][0]
+
+def test_tri_idx():
+    np.random.seed(0)
+    X = np.random.randn(10, 2)
+    x = np.random.rand(10, 2)
+    tri = Delaunay(X)
+
+    for k in range(x.shape[0]):
+        idx = get_triangle_idx(X, tri.simplices, x[k, :])
+        print(idx)
+    print(tri.find_simplex(x))
+
+
+def get_procrustes_alignment(X, Y, idx):
     """
     Given correspondences between two point clouds, to center
     them on their centroids and compute the Procrustes alignment to
@@ -125,33 +150,58 @@ def getProcrustesAlignment(X, Y, idx):
     #Compute the singular value decomposition of YCorrC*XC^T
     (U, S, VT) = np.linalg.svd(YCorrC.dot(XC.T))
     R = U.dot(VT)
-    return (Cx, Cy, R)    
+    return (Cx, Cy, R) 
 
-# Below is some code to find containing triangles
-# for the case where the triangulation isn't Delaunay
-def sign(x, p2, p3):
-    return (x[0] - p3[:, 0])*(p2[:, 1] - p3[:, 1]) - (p2[:, 0] - p3[:, 0])*(x[1] - p3[:, 1])
+def clamp_bbox(bbox, shape):
+    """
+    Clamp a bounding box to the dimensions of an array
+    Parameters
+    ----------
+    bbox: ndarray([i1, i2, j1, j2])
+        A bounding box
+    shape: tuple
+        Dimensions to which to clamp
+    """
+    [i1, i2, j1, j2] = bbox
+    j1 = max(0, int(j1))
+    i1 = max(0, int(i1))
+    j2 = min(shape[1]-1, int(j2))
+    i2 = min(shape[0]-1, int(i2))
+    bbox[0:4] = [i1, i2, j1, j2]
+    return bbox
 
-def getTriangleIdx(X, tri, x):
-    # Check to see if on all sides
-    [a, b, c] = [X[tri[:, k], :] for k in range(3)]
-    b1 = sign(x, a, b) < 0
-    b2 = sign(x, b, c) < 0
-    b3 = sign(x, c, a) < 0
-    agree = np.array((b1 == b2), dtype=int) + np.array((b2 == b3), dtype=int)
-    return np.arange(agree.size)[agree == 2][0]
+def expand_bbox(bbox, pad, shape):
+    """
+    Expand a bounding box by a certain factor
+    in all directions
+    Parameters
+    ----------
+    bbox: ndarray([i1, i2, j1, j2])
+        A bounding box
+    pad: float
+        The fraction by which to expand (>0 is bigger, <0 is smaller)
+    shape: tuple
+        Dimensions to which to clamp
+    """
+    [i1, i2, j1, j2] = bbox
+    width = j2-j1+1
+    height = i2-i1+1
+    i1 -= pad*height
+    i2 += pad*height
+    j1 -= pad*width
+    j2 += pad*width
+    bbox[0:4] = [i1, i2, j1, j2]
+    return clamp_bbox(bbox, shape)
 
-def testTriIdx():
-    np.random.seed(0)
-    X = np.random.randn(10, 2)
-    x = np.random.rand(10, 2)
-    tri = Delaunay(X)
-
-    for k in range(x.shape[0]):
-        idx = getTriangleIdx(X, tri.simplices, x[k, :])
-        print(idx)
-    print(tri.find_simplex(x))
+def add_bbox_to_keypoints(keypoints, bbox):
+    """
+    Create a new set of keypoints with corners of the
+    bounding box
+    """
+    [i1, i2, j1, j2] = bbox
+    corners = np.array([[j1, i1], [j1, i2], [j2, i2], [j2, i1]])
+    return np.concatenate((keypoints, corners), axis=0)
 
 if __name__ == '__main__':
-    #testBarycentricTri()
-    testTriIdx()
+    #test_barycentric_tri()
+    test_tri_idx()

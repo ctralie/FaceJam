@@ -47,11 +47,13 @@ if __name__ == '__main__':
     parser.add_argument('--videoname', type=str, required=True, help="Path to which to save the music video result")
     ## TODO: Check range of number of components so it's less than # of keypoints and # of diffusion maps time indices
     parser.add_argument('--n_components', type=int, default=10, help="Number of diffusion maps and facial landmark principal coordinates to use.  This *roughly* corresponds to the number of structual indicator functions.")
+    parser.add_argument('--bbox_expansion_fac', type=float, default=0.1, help="Amount by which to pad bounding box to make room for eyebrow expansion")
     parser.add_argument('--FPS', type=int, default=30, help="Video framerate")
     parser.add_argument('--NThreads', type=int, default=4, help="Number of CPU threads to use when doing the warps")
     opt = parser.parse_args()
     songfilename, imgfilename, videoname = opt.songfilename, opt.imgfilename, opt.videoname
     n_components, FPS, NThreads = opt.n_components, opt.FPS, opt.NThreads
+    bbox_expansion_fac = opt.bbox_expansion_fac
 
     ## Step 1: Load in the audio and perform the structure analysis
     print("Doing structural diffusion maps...")
@@ -105,8 +107,12 @@ if __name__ == '__main__':
 
 
     ## Step 3: Setup the new keypoints and do the warps
-    (modelface, XC, P, sv) = getFaceModel(n_components = n_components, doPlot = False)
+    (modelface, XC, P, sv) = get_face_model(n_components = n_components, bbox_expansion_fac = bbox_expansion_fac, doPlot = False)
     face = MorphableFace(imgfilename)
+    bbox = face.get_bbox()
+    expand_bbox(bbox, bbox_expansion_fac, face.img.shape)
+    face.setup_grid(bbox)
+    face.tri.simplices = modelface.tri.simplices
     eyebrow_range = 0.03*(np.max(face.XGrid[:, 1])-np.min(face.XGrid[:, 1]))
     eyebrows_diff *= eyebrow_range
     # Resample diffusion maps so that they're at the video sample rate
@@ -123,13 +129,15 @@ if __name__ == '__main__':
     def makeWarpsBatch(args):
         (i) = args
         print("Processing frame %i"%i)
-        (XKey2, imgwarp) = transferExpression(modelface, XC, P, face, x[i, :])
+        (XKey2, imgwarp) = transfer_expression(modelface, XC, P, face, x[i, :])
         XKey2[eyebrow_idx, 1] += eyebrows_diff[i]
         imgwarp = face.getForwardMap(XKey2)
         imageio.imwrite("%s%i.png"%(TEMP_STR, i), imgwarp)
 
     parpool = PPool(NThreads)
-    parpool.map(makeWarpsBatch, (np.arange(tsvideo.size)))
+    #parpool.map(makeWarpsBatch, (np.arange(tsvideo.size)))
+    for i in range(tsvideo.size):
+        makeWarpsBatch((i))
 
     ## Step 4: Make the music video
     command = [AVCONV_BIN,

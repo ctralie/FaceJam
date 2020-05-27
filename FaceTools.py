@@ -2,7 +2,7 @@ import time
 import dlib
 import numpy as np
 from scipy.spatial import Delaunay
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, interpn
 from GeometryTools import *
 
 predictor_path = "shape_predictor_68_face_landmarks.dat"
@@ -24,34 +24,46 @@ class MorphableFace(object):
     """
     def __init__(self, filename):
         """
-        Constructor for the face object.  Initializes the keypoints, sets up some
-        data structures that keep track of the locations of the keypoints to help
-        later with interpolation, and computes barycentric coordinates
+        Constructor for the face object.  Initializes the keypoints
+        and their delaunay triangulation
         Parameters
         ----------
         filename: string
             Path to image file with at least one face in it
         """
         self.img = dlib.load_rgb_image(filename)
-        self.getFaceKeypts()
-        self.tri = Delaunay(self.XKey)
-        X, Y = np.meshgrid(np.arange(self.img.shape[1]), np.arange(self.img.shape[0]))
-        XGrid = np.array([X.flatten(), Y.flatten()], dtype=np.float).T
-        allidxs = self.tri.find_simplex(XGrid)
-        self.idxs = allidxs[allidxs > -1] # Indices into the simplices
-        XGrid = XGrid[allidxs > -1, :]
-        imgidx = np.arange(self.img.shape[0]*self.img.shape[1])
-        imgidx = imgidx[allidxs > -1]
-        self.imgidxi, self.imgidxj = np.unravel_index(imgidx, (self.img.shape[0], self.img.shape[1]))
-        colors = self.img[self.imgidxi, self.imgidxj, :]
-        self.colors = colors/255.0
-        self.pixx = np.arange(np.min(self.imgidxj), np.max(self.imgidxj)+1)
-        self.pixy = np.arange(np.min(self.imgidxi), np.max(self.imgidxi)+1)
-        self.grididxx, self.grididxy = np.meshgrid(self.pixx, self.pixy)
-        self.XGrid = XGrid
-        self.bary = getBarycentricCoords(XGrid, self.idxs, self.tri, self.XKey)
+        self.get_face_keypts()
 
-    def getFaceKeypts(self, pad = 0.1):
+    def get_bbox(self):
+        """
+        Get the bounding box of the keypoints
+        """
+        j1, i1 = np.floor(np.min(self.XKey, axis=0))
+        j2, i2 = np.ceil(np.max(self.XKey, axis=0))
+        return clamp_bbox(np.array([i1, i2, j1, j2], dtype=int), self.img.shape)
+
+    def setup_grid(self, bbox):
+        """
+        Setup a grid given a bounding box, and compute triangle
+        indices and barycentric coordinates on this grid
+        Parameters
+        ----------
+        bbox: ndarray([i1, i2, j1, j2])
+            A bounding box
+        """
+        self.bbox = bbox
+        self.pixx = np.arange(bbox[2], bbox[3]+1)
+        self.pixy = np.arange(bbox[0], bbox[1]+1)
+        self.XKeyWBbox = add_bbox_to_keypoints(self.XKey, bbox)
+        self.tri = Delaunay(self.XKeyWBbox)
+        X, Y = np.meshgrid(self.pixx, self.pixy)
+        self.XGrid = np.array([X.flatten(), Y.flatten()], dtype=np.float).T
+        self.idxs = self.tri.find_simplex(self.XGrid)
+        self.bary = get_barycentric(self.XGrid, self.idxs, self.tri, self.XKeyWBbox)
+        self.colors = self.img[bbox[0]:bbox[1]+1, bbox[2]:bbox[3]+1, :]/255.0
+
+
+    def get_face_keypts(self, pad = 0.1):
         """
         Return the keypoints of the first face detected in the image
         Parameters
@@ -75,41 +87,14 @@ class MorphableFace(object):
         dets = detector(self.img, 1)
         print("Number of faces detected: {}".format(len(dets)))
         d = dets[0]
-
         # Get the landmarks/parts for the face in box d.
         shape = predictor(self.img, d)
         XKey = shape_to_np(shape)
         # Add four points in a square around the face
-        bds = [min(d.left(), np.min(XKey[:, 0])), max(d.right(), np.max(XKey[:, 0])) \
-                    , min(d.top(), np.min(XKey[:, 1])), max(d.bottom(), np.max(XKey[:, 1])) ]
-        x1, x2, y1, y2 = bds
-        width = x2 - x1
-        height = y2 - y1
-        self.width = width
-        self.height = height
-        print("width = %i, height = %i"%(width, height))
-        x1 -= pad*width
-        x2 += pad*width
-        y1 -= pad*height
-        y2 += pad*height
-        XKey = np.concatenate((XKey, np.array([[x1, y1], [x1, y2], [x2, y1], [x2, y2]])), 0)
         self.XKey = XKey
         return self.XKey
     
-    def plotForwardMapSplat(self, XKey2):
-        """
-        Extend the map from they keypoints to these new keypoints to a refined piecewise
-        affine map from triangles to triangles, and then splat the result via a scatterplot
-        Parameters
-        ----------
-        XKey2: ndarray(71, 2)
-            New locations of facial landmarks
-        """
-        XGrid2 = getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary)
-        plt.imshow(self.img)
-        plt.scatter(XGrid2[:, 0], XGrid2[:, 1], 2, c=self.colors)
-    
-    def getForwardMap(self, XKey2):
+    def get_forward_map(self, XKey2):
         """
         Extend the map from they keypoints to these new keypoints to a refined piecewise
         affine map from triangles to triangles
@@ -123,17 +108,23 @@ class MorphableFace(object):
         imgwarped: ndarray(M, N, 3)
             An image warped according to the map
         """
-        XGrid2 = getEuclideanFromBarycentric(self.idxs, self.tri, XKey2, self.bary)
+        [i1, i2, j1, j2] = self.bbox
+        XKey2WBbox = add_bbox_to_keypoints(XKey2, self.bbox)
+        XGrid2 = barycentric_to_euclidean(self.idxs, self.tri, XKey2WBbox, self.bary)
+        diff = XGrid2 - self.XGrid
+        XGrid2 = self.XGrid - diff
+        XGrid2 = np.fliplr(XGrid2)
+        # Numerical precision could cause coords to be out of bounds
+        XGrid2[XGrid2[:, 0] <= np.min(self.pixy), 0] = np.min(self.pixy)
+        XGrid2[XGrid2[:, 0] >= np.max(self.pixy), 0] = np.max(self.pixy)
+        XGrid2[XGrid2[:, 1] <= np.min(self.pixx), 1] = np.min(self.pixx)
+        XGrid2[XGrid2[:, 1] >= np.max(self.pixx), 1] = np.max(self.pixx)
         imgret = np.array(self.img)
-        interpbox = griddata(XGrid2, self.colors, (self.grididxx, self.grididxy))
-        interpbox = np.array(np.round(255*interpbox), dtype = np.uint8)
+        shape = (i2-i1+1, j2-j1+1)
         for c in range(3):
-            interpc = interpbox[:, :, c]
-            imgret[self.imgidxi, self.imgidxj, c] = interpc.flatten()
-        # Some weird stuff happens at the boundaries
-        for k in [0, -1]:
-            imgret[self.imgidxi[k], :, :] = self.img[self.imgidxi[k], :, :]
-            imgret[:, self.imgidxj[k], :] = self.img[:, self.imgidxj[k], :]
+            interpbox = interpn((self.pixy, self.pixx), self.colors[:, :, c], XGrid2)
+            interpbox = np.array(np.round(255*interpbox), dtype = np.uint8)
+            imgret[i1:i2+1, j1:j2+1, c] = np.reshape(interpbox, shape)
         return imgret
 
     def plotKeypoints(self, drawLandmarks = True, drawTriangles = False):
@@ -147,36 +138,38 @@ class MorphableFace(object):
             plt.triplot(self.XKey[:, 0], self.XKey[:, 1], self.tri.simplices)
 
 
-def testWarp():
+def test_delaunay(filename):
+    face = MorphableFace(filename)
+    plt.subplot(121)
+    face.plotKeypoints()
+    plt.title("DLib Facial Landmarks")
+    plt.subplot(122)
+    face.plotKeypoints(False, True)
+    plt.title("Delaunay Triangulation")
+    plt.show()
+
+def test_warp(filename):
     """
     Make sure the warping is working by randomly perturbing the
     facial landmarks a bunch of times
     """
-    filename = "therock.jpg"
     face = MorphableFace(filename)
+    bbox = face.get_bbox()
+    expand_bbox(bbox, 0.2, face.img.shape)
+    face.setup_grid(bbox)
     NFrames = 10
     for f in range(NFrames):
         plt.clf()
         print("Warping frame %i of %i..."%(f+1, NFrames))
-        XKey2 = np.array(face.XKey)
-        XKey2[0:-4, :] += 2*np.random.randn(XKey2.shape[0]-4, 2)
+        XKey2 = np.array(face.XKey, dtype=float)
+        XKey2 += 2*np.random.randn(XKey2.shape[0], 2)
         tic = time.time()
-        res = face.getForwardMap(XKey2)
+        res = face.get_forward_map(XKey2)
         plt.imshow(res)
         print("Elapsed Time: %.3g"%(time.time()-tic))
         plt.scatter(XKey2[:, 0], XKey2[:, 1], 2)
         plt.savefig("WarpTest%i.png"%f)
 
 if __name__ == '__main__':
-    face = MorphableFace("therock.jpg")
-    plt.subplot(121)
-    face.plotKeypoints()
-    plt.xlim([250, 500])
-    plt.ylim([250, 0])
-    plt.title("DLib Facial Landmarks")
-    plt.subplot(122)
-    face.plotKeypoints(False, True)
-    plt.xlim([250, 500])
-    plt.ylim([250, 0])
-    plt.title("Delaunay Triangulation")
-    plt.show()
+    filename = "CVPR2014Data/1/00001.jpg"
+    test_warp(filename)

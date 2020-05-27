@@ -82,12 +82,12 @@ def makeProcrustesVideo():
     allframes, _ = getVideo("MyExpressions.webm", computeKeypoints=False)
     for i in range(1, allkeypts.shape[0]):
         X = allkeypts[i, :, :].T
-        Cx, Cy, R = getProcrustesAlignment(X[:, 0:-4], Y[:, 0:-4], np.arange(X.shape[1]-4))
+        Cx, Cy, R = get_procrustes_alignment(X[:, 0:-4], Y[:, 0:-4], np.arange(X.shape[1]-4))
         XNew = X - Cx
         XNew = R.dot(XNew)
         XNew += Cy
         XNew[:, -4::] = Y[:, -4::]
-        newImg = face.getForwardMap(XNew.T)
+        newImg = face.get_forward_map(XNew.T)
 
         plt.subplot(121)
         plt.imshow(allframes[i])
@@ -98,14 +98,14 @@ def makeProcrustesVideo():
 
         plt.savefig("Procrustes%i.png"%i)
 
-def getFaceModel(n_components=10, doPlot = False):
+def get_face_model(bbox_expansion_fac = 0.1, n_components=10, doPlot = False):
     allkeypts = sio.loadmat("allkeypts.mat")["allkeypts"]
     Y = allkeypts[0, :, :].T
     
     ## Step 1: Do procrustes to align all frames to first frame
     for i in range(1, allkeypts.shape[0]):
         X = allkeypts[i, :, :].T
-        Cx, Cy, R = getProcrustesAlignment(X[:, 0:-4], Y[:, 0:-4], np.arange(X.shape[1]-4))
+        Cx, Cy, R = get_procrustes_alignment(X[:, 0:-4], Y[:, 0:-4], np.arange(X.shape[1]-4))
         XNew = X - Cx
         XNew = R.dot(XNew)
         XNew += Cy
@@ -122,6 +122,9 @@ def getFaceModel(n_components=10, doPlot = False):
     sv = np.sqrt(pca.singular_values_)
 
     face = MorphableFace("MyExpressions_InitialFrame.jpg")
+    bbox = face.get_bbox()
+    expand_bbox(bbox, bbox_expansion_fac, face.img.shape)
+    face.setup_grid(bbox)
     if doPlot:
         plt.subplot(141)
         plt.stem(sv)
@@ -130,14 +133,14 @@ def getFaceModel(n_components=10, doPlot = False):
             Y = XC + sv[k]*P[:, k]
             XKey2 = np.reshape(Y, (allkeypts.shape[1], allkeypts.shape[2]))
             plt.subplot(1, 4, k+2)
-            img = face.getForwardMap(XKey2)
+            img = face.get_forward_map(XKey2)
             plt.imshow(img)
             plt.title("Principal Component %i"%k)
         plt.show()
     
     return (face, XC.flatten(), P, sv)
 
-def transferExpression(modelface, XC, P, targetface, X):
+def transfer_expression(modelface, XC, P, targetface, X):
     """
     Given a model face and its principal components, 
     apply a principal component warp in the model face
@@ -157,23 +160,23 @@ def transferExpression(modelface, XC, P, targetface, X):
     """
     ## Step 1: Make keypoints in the model coordinate system
     Y = XC[None, :] + np.sum(X[None, :]*P, 1)
-    XKey2 = np.reshape(Y, (modelface.XKey.shape[0], modelface.XKey.shape[1]))
+    XKey2 = np.reshape(Y, (modelface.XKeyWBbox.shape[0], modelface.XKeyWBbox.shape[1]))
 
     ## Step 2: Find barycentric coordinates in model coordinate system, 
     ## **using triangles from the target system**
-    idxs = [getTriangleIdx(modelface.XKey, targetface.tri.simplices, XKey2[k, :]) for k in range(XKey2.shape[0])]
+    idxs = [get_triangle_idx(modelface.XKeyWBbox, targetface.tri.simplices, XKey2[k, :]) for k in range(XKey2.shape[0])]
     idxs = np.array(idxs).flatten()
-    bary = getBarycentricCoords(XKey2, idxs, targetface.tri, modelface.XKey)
+    bary = get_barycentric(XKey2, idxs, targetface.tri, modelface.XKeyWBbox)
 
     ## Step 3: Apply barycentric coordinates in the target face coordinate system
-    XKey2 = getEuclideanFromBarycentric(idxs, targetface.tri, targetface.XKey, bary)
+    XKey2 = barycentric_to_euclidean(idxs, targetface.tri, targetface.XKeyWBbox, bary)
 
     ## Step 4: Apply the warp to the target face based on the new keypoints
-    return (XKey2, targetface.getForwardMap(XKey2))
+    return (XKey2, targetface.get_forward_map(XKey2))
 
 
 def testPCsTheRock():
-    (modelface, XC, P, sv) = getFaceModel(doPlot = False)
+    (modelface, XC, P, sv) = get_face_model(doPlot = False)
     face = MorphableFace("therock.jpg")
 
     plt.subplot(221)
@@ -185,14 +188,14 @@ def testPCsTheRock():
         x = np.array(sv)
         x = np.zeros_like(sv)
         x[k] = sv[0]
-        (XKey2, newimg) = transferExpression(modelface, XC, P, face, x)
+        (XKey2, newimg) = transfer_expression(modelface, XC, P, face, x)
         plt.imshow(newimg)
         plt.title("PC %i"%(k+1))
         plt.axis('off')
     plt.show()
 
 def showMyFaceOnTheRock():
-    (modelface, XC, P, sv) = getFaceModel(doPlot = False)
+    (modelface, XC, P, sv) = get_face_model(doPlot = False)
     print("XC.shape = ", XC.shape)
     print("P.shape = ", P.shape)
     face = MorphableFace("therock.jpg")
@@ -205,7 +208,7 @@ def showMyFaceOnTheRock():
         keypts -= XC
         coords = keypts[None, :].dot(P)
         
-        XKey2, newimg = transferExpression(modelface, XC, P, face, coords.flatten())
+        XKey2, newimg = transfer_expression(modelface, XC, P, face, coords.flatten())
         plt.clf()
         plt.subplot(121)
         plt.imshow(allframes[i])
